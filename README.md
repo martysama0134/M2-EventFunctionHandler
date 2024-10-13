@@ -1,7 +1,7 @@
 ```txt
 #####################################################################################
 # ORIGINAL TOPIC: https://metin2.dev/topic/17432-reimplementation-of-events/        #
-# Created by Sherer 2017 (C)                                                        #
+# Created by Sherer 2017-2024 (C) - Revisioned by martysama0134 for c++20 support.  #
 #####################################################################################
 ```
 
@@ -9,10 +9,7 @@ Hello,
 
 Working on some new stuff I found out that current implementation of event looks a bit tricky.
 
-Due to this fact I basically deciced to re-implement it in C++11 providing up to date tech.
-
-Don`t forget to take a look at this topic before you start: 
-[Compile with GCC48 / C++11 & Optimized Flags](https://metin2.dev/topic/305-compile-with-gcc48-c11-optimized-flags/)
+Due to this fact I basically deciced to re-implement it providing up to date tech.
 
 So lets begin.
 
@@ -66,4 +63,4 @@ So lets begin.
 
 That`s all.
 
-Now just download attachment and add included files to your source.
+Now just download [master.zip](../../archive/refs/heads/main.zip) and add the included files to your source.
