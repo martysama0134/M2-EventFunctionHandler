@@ -18,18 +18,16 @@ void CEventFunctionHandler::Destroy()
 	AddEvent(Function_to_Call, Event_Name, RunTime, SupportArg)
 	Adding new event.
 
-	Function_to_Call - std::function object containing function called when event appears. Keep in mind that functions always take one argument of type: SArgumentSupportImpl *.
+	Function_to_Call - std::function object containing function called when event appears.
 	Event_Name - unique event name. If you accidently provide name of event which already exists, function returns false (if could rewrite current one but i did deny this idea).
 	RunTime - execution time (in sec).
-	SupportArg - argument for Function_to_Call: SArgumentSupportImpl *.
-
-	SArgumentSupportImpl definition can be found in the header files.
+	Loop - repeat the event every RunTime seconds.
 */
-bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)> func, const std::string_view event_name, const size_t runtime, SArgumentSupportImpl * support_arg)
+bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)> func, const std::string_view event_name, const size_t runtime, const bool loop)
 {
 	if (GetHandlerByName(event_name))
 		return false;
-	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), runtime, support_arg));
+	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), runtime, loop));
 	return true;
 }
 
@@ -87,11 +85,16 @@ void CEventFunctionHandler::Process()
 		return;
 
 	const auto current_time = get_global_time();
-	std::erase_if(m_event, [&](auto& pair) {
+	std::erase_if(m_event, [&](const auto& pair) {
 		const auto& [event_name, event_fnc] = pair;
 		if (current_time >= event_fnc->time)
 		{
-			event_fnc->func(event_fnc->SupportArg.get());
+			event_fnc->func(nullptr);
+			if (event_fnc->IsLooped())
+			{
+				event_fnc->UpdateNextLoopTime();
+				return false;
+			}
 			return true;
 		}
 		return false;
