@@ -76,16 +76,22 @@ Download [master.zip](../../archive/refs/heads/main.zip), and add the included f
 ### Usage
 
 ```cpp
-	// create the event (using "this" as argument is safe only if it's a singleton, for CHARACTER or CItem, use their vid and find them inside the lambda)
+	// Create the event and call it after 5 seconds. Using "this" as argument is safe only if it's a singleton, for CHARACTER or CItem, use their vid and find them inside the lambda.
 	CEventFunctionHandler::instance().AddEvent([this](SArgumentSupportImpl*) {
 			this->SendNotificationToAll();
 		}, "MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count()
 	);
 
-	// check if it exists, then delay it again by 5s
+	// Create the event and loop it every 5 minutes. Don't forget, keys already existing will be skipped, such as this one.
+	CEventFunctionHandler::instance().AddEvent([this](SArgumentSupportImpl*) {
+			this->SendNotificationToAll();
+		}, "MY_BEAUTIFUL_EVENT", std::chrono::minutes(5).count(), true
+	);
+
+	// Check if it exists, then delay it again by 5s.
 	if (CEventFunctionHandler::instance().FindEvent("MY_BEAUTIFUL_EVENT"))
 		CEventFunctionHandler::Instance().DelayEvent("MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count());
 
-	// cancel the event (safe even if it doesn't exist)
+	// Cancel the event. Safe even if the key doesn't exist.
 	CEventFunctionHandler::Instance().RemoveEvent("MY_BEAUTIFUL_EVENT");
 ```
