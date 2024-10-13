@@ -6,16 +6,6 @@
 # ORIGINAL TOPIC: https://metin2.dev/topic/17432-reimplementation-of-events/        #
 # Created by Sherer 2017-2024 (C) - Revisioned by martysama0134 for c++20 support.  #
 #####################################################################################
-
-Hello,
-
-Working on some new stuff I found out that current implementation of event looks a bit tricky.
-
-Due to this fact I basically decided to re-implement it providing up to date tech.
-
-So lets begin.
-
-That`s all.
 ```
 
 
