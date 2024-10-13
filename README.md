@@ -31,7 +31,7 @@ That`s all.
 	```cpp
 		while (idle());
 	```
-	
+
 	And add before:
 	```cpp
 		#ifdef __NEW_EVENT_HANDLER__
@@ -79,12 +79,12 @@ Download [master.zip](../../archive/refs/heads/main.zip), and add the included f
 	// create the event (using "this" as argument is safe only if it's a singleton, for CHARACTER or CItem, use their vid and find them inside the lambda)
 	CEventFunctionHandler::instance().AddEvent([this](SArgumentSupportImpl*) {
 			this->SendNotificationToAll();
-		}, "MY_BEAUTIFUL_EVENT", std::chrono::seconds(5)
+		}, "MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count()
 	);
 
-	// check if it exists
+	// check if it exists, then delay it again by 5s
 	if (CEventFunctionHandler::instance().FindEvent("MY_BEAUTIFUL_EVENT"))
-		printf("The event is active.\n");
+		CEventFunctionHandler::Instance().DelayEvent("MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count());
 
 	// cancel the event (safe even if it doesn't exist)
 	CEventFunctionHandler::Instance().RemoveEvent("MY_BEAUTIFUL_EVENT");
