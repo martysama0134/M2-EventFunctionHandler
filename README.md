@@ -88,7 +88,7 @@ Download [master.zip](../../archive/refs/heads/main.zip), and add the included f
 		}, "MY_BEAUTIFUL_EVENT", std::chrono::minutes(5).count(), true
 	);
 
-	// Check if it exists, then delay it again by 5s.
+	// Check if it exists, then delay it again by 5s. Don't forget, DelayEvent has no effect to looped events.
 	if (CEventFunctionHandler::instance().FindEvent("MY_BEAUTIFUL_EVENT"))
 		CEventFunctionHandler::Instance().DelayEvent("MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count());
 

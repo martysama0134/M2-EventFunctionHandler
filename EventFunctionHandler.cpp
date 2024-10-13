@@ -43,14 +43,14 @@ void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 
 /*
 	DelayEvent(Event_Name, NewTime)
-	Changing existing event time.
+	Changing existing event time. Disabled for looped events.
 
 	Event_Name - unique event name.
 	NewTime - new time.
 */
 void CEventFunctionHandler::DelayEvent(const std::string_view event_name, const size_t newtime)
 {
-	if (auto ptr = GetHandlerByName(event_name))
+	if (auto ptr = GetHandlerByName(event_name); !ptr->IsLooped())
 		ptr->UpdateTime(newtime);
 }
 
