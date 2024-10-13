@@ -25,11 +25,11 @@ void CEventFunctionHandler::Destroy()
 
 	SArgumentSupportImpl definition can be found in the header files.
 */
-bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)> func, const std::string_view event_name, const size_t runtime, SArgumentSupportImpl * support_arg)
+bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl*)> func, const std::string_view event_name, const size_t runtime, SArgumentSupportImpl* support_arg, const bool bLoop)
 {
 	if (GetHandlerByName(event_name))
 		return false;
-	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), runtime, support_arg));
+	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), runtime, support_arg, bLoop));
 	return true;
 }
 
@@ -41,7 +41,13 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)>
 */
 void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 {
-	m_event.erase(event_name.data());
+	if (auto ptr = GetHandlerByName(event_name))
+	{
+		if (!ptr->IsLooped())
+			m_event.erase(event_name.data());
+		else
+			ptr->SetDestoyed();
+	}
 }
 
 /*
@@ -87,13 +93,19 @@ void CEventFunctionHandler::Process()
 		return;
 
 	const auto current_time = get_global_time();
-	std::erase_if(m_event, [&](auto& pair) {
+	std::erase_if(m_event, [&](const auto& pair) {
 		const auto& [event_name, event_fnc] = pair;
-		if (current_time >= event_fnc->time)
-		{
-			event_fnc->func(event_fnc->SupportArg.get());
+		if (current_time < event_fnc->time) return false;
+
+		if (!event_fnc->IsLooped() || event_fnc->IsDestroyed()) {
+			if (!event_fnc->IsDestroyed()) {
+				event_fnc->func(event_fnc->SupportArg.get());
+			}
 			return true;
 		}
+
+		event_fnc->UpdateNextLoopTime();
+		event_fnc->func(event_fnc->SupportArg.get());
 		return false;
 	});
 }
