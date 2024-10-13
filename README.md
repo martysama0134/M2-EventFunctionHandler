@@ -1,18 +1,25 @@
+
+### Intro
+
 ```txt
 #####################################################################################
 # ORIGINAL TOPIC: https://metin2.dev/topic/17432-reimplementation-of-events/        #
 # Created by Sherer 2017-2024 (C) - Revisioned by martysama0134 for c++20 support.  #
 #####################################################################################
-```
 
 Hello,
 
 Working on some new stuff I found out that current implementation of event looks a bit tricky.
 
-Due to this fact I basically deciced to re-implement it providing up to date tech.
+Due to this fact I basically decided to re-implement it providing up to date tech.
 
 So lets begin.
 
+That`s all.
+```
+
+
+### Implementation
 1) Add include into the `main.cpp`:
 	```cpp
 	#ifdef __NEW_EVENT_HANDLER__
@@ -24,7 +31,7 @@ So lets begin.
 	```cpp
 		while (idle());
 	```
-	
+
 	And add before:
 	```cpp
 		#ifdef __NEW_EVENT_HANDLER__
@@ -61,6 +68,24 @@ So lets begin.
 	#define __NEW_EVENT_HANDLER__
 	```
 
-That`s all.
 
-Now just download [master.zip](../../archive/refs/heads/main.zip) and add the included files to your source.
+### Download
+Download [master.zip](../../archive/refs/heads/main.zip), and add the included files to your source.
+
+
+### Usage
+
+```cpp
+	// create the event (using "this" as argument is safe only if it's a singleton, for CHARACTER or CItem, use their vid and find them inside the lambda)
+	CEventFunctionHandler::instance().AddEvent([this](SArgumentSupportImpl*) {
+			this->SendNotificationToAll();
+		}, "MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count()
+	);
+
+	// check if it exists, then delay it again by 5s
+	if (CEventFunctionHandler::instance().FindEvent("MY_BEAUTIFUL_EVENT"))
+		CEventFunctionHandler::Instance().DelayEvent("MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count());
+
+	// cancel the event (safe even if it doesn't exist)
+	CEventFunctionHandler::Instance().RemoveEvent("MY_BEAUTIFUL_EVENT");
+```
