@@ -29,8 +29,7 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)>
 {
 	if (GetHandlerByName(event_name))
 		return false;
-
-	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(func, runtime, support_arg));
+	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), runtime, support_arg));
 	return true;
 }
 
@@ -42,9 +41,7 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)>
 */
 void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 {
-	auto ptr = GetHandlerByName(event_name);
-	if (ptr)
-		m_event.erase(event_name.data());
+	m_event.erase(event_name.data());
 }
 
 /*
@@ -56,8 +53,7 @@ void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 */
 void CEventFunctionHandler::DelayEvent(const std::string_view event_name, const size_t newtime)
 {
-	auto ptr = GetHandlerByName(event_name);
-	if (ptr)
+	if (auto ptr = GetHandlerByName(event_name))
 		ptr->UpdateTime(newtime);
 }
 
@@ -80,30 +76,26 @@ bool CEventFunctionHandler::FindEvent(const std::string_view event_name) const
 */
 DWORD CEventFunctionHandler::GetDelay(const std::string_view event_name) const
 {
-	const auto ptr = GetHandlerByName(event_name);
-	if (ptr && ptr->time >= get_global_time())
+	if (const auto ptr = GetHandlerByName(event_name); ptr && ptr->time >= get_global_time())
 		return ptr->time - get_global_time();
 	return 0;
 }
 
 void CEventFunctionHandler::Process()
 {
-	if (!bProcessStatus || !m_event.size())
+	if (!bProcessStatus || m_event.empty())
 		return;
 
-	std::vector<std::string> v_delete;
-	v_delete.reserve(m_event.size()); // cache with a fixed number for better performance
-	for (const auto & [event_name, event_fnc] : m_event)
-	{
-		if (get_global_time() >= event_fnc->time)
+	const auto current_time = get_global_time();
+	std::erase_if(m_event, [&](auto& pair) {
+		const auto& [event_name, event_fnc] = pair;
+		if (current_time >= event_fnc->time)
 		{
 			event_fnc->func(event_fnc->SupportArg.get());
-			v_delete.emplace_back(event_name);
+			return true;
 		}
-	}
-
-	for (const auto & key : v_delete)
-		m_event.erase(key);
+		return false;
+	});
 }
 
 CEventFunctionHandler::SFunctionHandler * CEventFunctionHandler::GetHandlerByName(const std::string_view event_name) const
@@ -112,4 +104,3 @@ CEventFunctionHandler::SFunctionHandler * CEventFunctionHandler::GetHandlerByNam
 		return it->second.get();
 	return nullptr;
 }
-
