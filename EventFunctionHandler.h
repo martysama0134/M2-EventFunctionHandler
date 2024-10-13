@@ -2,7 +2,6 @@
 	Sherer 2017-2024 (C) - Revisioned by martysama0134 for c++20 support.
 	Feel free to use it on your own.
 	But ffs don`t remove this.
-	Revisioned by martysama0134 for c++20 support.
 */
 
 #pragma once
@@ -40,7 +39,7 @@ public:
 	virtual ~CEventFunctionHandler() = default; // Destroy() only clears up std containers so no need to explicitly call it here
 
 	void Destroy();
-	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, const std::string_view event_name, const size_t runtime, const bool loop = false);
+	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, const std::string_view event_name, const size_t time, const bool loop = false);
 	void RemoveEvent(const std::string_view event_name);
 	void DelayEvent(const std::string_view event_name, const size_t newtime);
 	bool FindEvent(const std::string_view event_name) const;
@@ -50,5 +49,4 @@ public:
 private:
 	SFunctionHandler* GetHandlerByName(const std::string_view event_name) const;
 	std::unordered_map<std::string, std::unique_ptr<SFunctionHandler>> m_event;
-	bool bProcessStatus{true};
 };

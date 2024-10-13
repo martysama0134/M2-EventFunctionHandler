@@ -11,23 +11,22 @@
 void CEventFunctionHandler::Destroy()
 {
 	m_event.clear();
-	bProcessStatus = false;
 }
 
 /*
-	AddEvent(Function_to_Call, Event_Name, RunTime, SupportArg)
+	AddEvent(Function_to_Call, Event_Name, Time, Loop)
 	Adding new event.
 
 	Function_to_Call - std::function object containing function called when event appears.
 	Event_Name - unique event name. If you accidently provide name of event which already exists, function returns false (if could rewrite current one but i did deny this idea).
-	RunTime - execution time (in sec).
-	Loop - repeat the event every RunTime seconds.
+	Time - execution time (in sec).
+	Loop - repeat the event every Time seconds.
 */
-bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)> func, const std::string_view event_name, const size_t runtime, const bool loop)
+bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)> func, const std::string_view event_name, const size_t time, const bool loop)
 {
 	if (GetHandlerByName(event_name))
 		return false;
-	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), runtime, loop));
+	m_event.emplace(event_name, std::make_unique<SFunctionHandler>(std::move(func), time, loop));
 	return true;
 }
 
@@ -81,7 +80,7 @@ DWORD CEventFunctionHandler::GetDelay(const std::string_view event_name) const
 
 void CEventFunctionHandler::Process()
 {
-	if (!bProcessStatus || m_event.empty())
+	if (m_event.empty())
 		return;
 
 	const auto current_time = get_global_time();
