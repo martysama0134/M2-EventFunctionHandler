@@ -39,14 +39,15 @@ public:
 	virtual ~CEventFunctionHandler() = default; // Destroy() only clears up std containers so no need to explicitly call it here
 
 	void Destroy();
-	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, const std::string_view event_name, const size_t time, const bool loop = false);
-	void RemoveEvent(const std::string_view event_name);
-	void DelayEvent(const std::string_view event_name, const size_t newtime);
-	bool FindEvent(const std::string_view event_name) const;
-	DWORD GetDelay(const std::string_view event_name) const;
+	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, std::string_view event_name, size_t time, bool loop = false);
+	void RemoveEvent(std::string_view event_name);
+	void DelayEvent(std::string_view event_name, size_t newtime);
+	bool FindEvent(std::string_view event_name) const;
+	DWORD GetDelay(std::string_view event_name) const;
 	void Process();
 
 private:
-	SFunctionHandler* GetHandlerByName(const std::string_view event_name) const;
+	SFunctionHandler* GetHandlerByName(std::string_view event_name) const;
+	std::vector<std::string> m_event_pending;
 	std::unordered_map<std::string, std::unique_ptr<SFunctionHandler>> m_event;
 };
