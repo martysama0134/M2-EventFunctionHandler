@@ -50,7 +50,7 @@ void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 */
 void CEventFunctionHandler::DelayEvent(const std::string_view event_name, const size_t newtime)
 {
-	if (auto ptr = GetHandlerByName(event_name); !ptr->IsLooped())
+	if (auto ptr = GetHandlerByName(event_name); ptr && !ptr->IsLooped())
 		ptr->UpdateTime(newtime);
 }
 
@@ -84,20 +84,32 @@ void CEventFunctionHandler::Process()
 		return;
 
 	const auto current_time = get_global_time();
-	std::erase_if(m_event, [&](const auto& pair) {
-		const auto& [event_name, event_fnc] = pair;
+	std::vector<std::string> v_delete;
+	std::vector<std::pair<std::string, std::function<void(SArgumentSupportImpl*)>>> v_function_call;
+
+	for (const auto & [event_name, event_fnc] : m_event)
+	{
+		if (!event_fnc) {
+			v_delete.emplace_back(event_name);
+			continue;
+		}
+
 		if (current_time >= event_fnc->time)
 		{
-			event_fnc->func(nullptr);
+			v_function_call.emplace_back(event_name, event_fnc->func);
+
 			if (event_fnc->IsLooped())
-			{
 				event_fnc->UpdateNextLoopTime();
-				return false;
-			}
-			return true;
+			else
+				v_delete.emplace_back(event_name);
 		}
-		return false;
-	});
+	}
+
+	for (const auto& key : v_delete)
+		m_event.erase(key);
+
+	for (const auto& [event_name, func] : v_function_call)
+		func(nullptr);
 }
 
 CEventFunctionHandler::SFunctionHandler * CEventFunctionHandler::GetHandlerByName(const std::string_view event_name) const
