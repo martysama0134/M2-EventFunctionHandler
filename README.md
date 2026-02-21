@@ -80,8 +80,11 @@ Download [master.zip](../../archive/refs/heads/main.zip), and add the included f
 
 	// Check if it exists, then delay it again by 5s. Don't forget, DelayEvent has no effect to looped events.
 	if (CEventFunctionHandler::instance().FindEvent("MY_BEAUTIFUL_EVENT"))
-		CEventFunctionHandler::Instance().DelayEvent("MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count());
+		CEventFunctionHandler::instance().DelayEvent("MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count());
+
+	// Get remaining time (in seconds) before the event fires. Returns 0 if already expired or not found.
+	DWORD remaining = CEventFunctionHandler::instance().GetDelay("MY_BEAUTIFUL_EVENT");
 
 	// Cancel the event. Safe even if the key doesn't exist.
-	CEventFunctionHandler::Instance().RemoveEvent("MY_BEAUTIFUL_EVENT");
+	CEventFunctionHandler::instance().RemoveEvent("MY_BEAUTIFUL_EVENT");
 ```
