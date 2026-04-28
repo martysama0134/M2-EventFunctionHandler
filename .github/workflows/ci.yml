@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: gcc-13
+            cc: gcc-13
+            cxx: g++-13
+            package: g++-13
+          - os: ubuntu-latest
+            compiler: clang-17
+            cc: clang-17
+            cxx: clang++-17
+            package: clang-17
+          - os: windows-latest
+            compiler: msvc
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.compiler }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install compiler
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.package }}
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure
+        run: cmake -B build
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
