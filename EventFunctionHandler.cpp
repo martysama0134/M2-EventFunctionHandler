@@ -38,7 +38,8 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)>
 */
 void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 {
-	m_event.erase(std::string(event_name));
+	if (auto it = m_event.find(event_name); it != m_event.end())
+		m_event.erase(it);
 }
 
 /*
@@ -73,8 +74,9 @@ bool CEventFunctionHandler::FindEvent(const std::string_view event_name) const
 */
 DWORD CEventFunctionHandler::GetDelay(const std::string_view event_name) const
 {
-	if (const auto ptr = GetHandlerByName(event_name); ptr && ptr->time >= get_global_time())
-		return ptr->time - get_global_time();
+	const auto current_time = get_global_time();
+	if (const auto ptr = GetHandlerByName(event_name); ptr && ptr->time >= current_time)
+		return ptr->time - current_time;
 	return 0;
 }
 
@@ -106,9 +108,14 @@ void CEventFunctionHandler::Process()
 		func(nullptr);
 }
 
-CEventFunctionHandler::SFunctionHandler * CEventFunctionHandler::GetHandlerByName(const std::string_view event_name) const
+const CEventFunctionHandler::SFunctionHandler* CEventFunctionHandler::GetHandlerByName(const std::string_view event_name) const
 {
-	if (auto it = m_event.find(std::string(event_name)); it != m_event.end())
+	if (auto it = m_event.find(event_name); it != m_event.end())
 		return it->second.get();
 	return nullptr;
+}
+
+CEventFunctionHandler::SFunctionHandler* CEventFunctionHandler::GetHandlerByName(const std::string_view event_name)
+{
+	return const_cast<SFunctionHandler*>(std::as_const(*this).GetHandlerByName(event_name));
 }

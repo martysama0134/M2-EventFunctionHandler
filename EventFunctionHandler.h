@@ -11,9 +11,19 @@
 #include <memory>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 struct SArgumentSupportImpl {}; // keep for v1 compatibility
+
+struct StringHash
+{
+	using is_transparent = void;
+	size_t operator()(std::string_view sv) const noexcept
+	{
+		return std::hash<std::string_view>{}(sv);
+	}
+};
 
 class CEventFunctionHandler : public singleton<CEventFunctionHandler>
 {
@@ -47,6 +57,7 @@ public:
 	void Process();
 
 private:
-	SFunctionHandler* GetHandlerByName(const std::string_view event_name) const;
-	std::unordered_map<std::string, std::unique_ptr<SFunctionHandler>> m_event;
+	const SFunctionHandler* GetHandlerByName(std::string_view event_name) const;
+	SFunctionHandler* GetHandlerByName(std::string_view event_name);
+	std::unordered_map<std::string, std::unique_ptr<SFunctionHandler>, StringHash, std::equal_to<>> m_event;
 };
