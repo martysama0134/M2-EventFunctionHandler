@@ -38,7 +38,7 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl *)>
 */
 void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
 {
-	m_event.erase(event_name.data());
+	m_event.erase(std::string(event_name));
 }
 
 /*
@@ -108,7 +108,7 @@ void CEventFunctionHandler::Process()
 
 CEventFunctionHandler::SFunctionHandler * CEventFunctionHandler::GetHandlerByName(const std::string_view event_name) const
 {
-	if (auto it = m_event.find(event_name.data()); it != m_event.end())
+	if (auto it = m_event.find(std::string(event_name)); it != m_event.end())
 		return it->second.get();
 	return nullptr;
 }
