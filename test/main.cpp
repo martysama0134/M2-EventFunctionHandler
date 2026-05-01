@@ -126,7 +126,7 @@ int main()
 	int fired_pulse = 0;
 	set_global_time(0);
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_pulse; return 0; }, "pulse_once", 10));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_pulse; return 0; }, "pulse_once", 10));
 	set_pulse(9);
 	handler.Process();
 	assert(fired_pulse == 0);
@@ -139,7 +139,7 @@ int main()
 	handler.Destroy();
 	int fired_resched = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_resched; return 5; }, "pulse_resched", 10));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_resched; return 5; }, "pulse_resched", 10));
 	set_pulse(10);
 	handler.Process();
 	assert(fired_resched == 1);
@@ -155,7 +155,7 @@ int main()
 	handler.Destroy();
 	int dynamic_count = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t {
 		++dynamic_count;
 		if (dynamic_count == 1) return 10;
 		if (dynamic_count == 2) return 5;
@@ -176,7 +176,7 @@ int main()
 	handler.Destroy();
 	int fired_offbyone = 0;
 	set_pulse(100);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_offbyone; return 0; }, "pulse_obo", 1));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_offbyone; return 0; }, "pulse_obo", 1));
 	handler.Process();
 	assert(fired_offbyone == 0);
 	set_pulse(101);
@@ -189,7 +189,7 @@ int main()
 	handler.Destroy();
 	int fired_selfrem = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t {
 		++fired_selfrem;
 		handler.RemoveEvent("pulse_selfrem");
 		return 5;
@@ -206,10 +206,10 @@ int main()
 	handler.Destroy();
 	int fired_readd_orig = 0, fired_readd_new = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t {
 		++fired_readd_orig;
 		handler.RemoveEvent("pulse_readd");
-		handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_readd_new; return 0; }, "pulse_readd", 5);
+		handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_readd_new; return 0; }, "pulse_readd", 5);
 		return 0;
 	}, "pulse_readd", 3));
 	set_pulse(3);
@@ -225,8 +225,8 @@ int main()
 	handler.Destroy();
 	int fired_delay0 = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
-		handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_delay0; return 0; }, "pulse_delay0_child", 0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t {
+		handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_delay0; return 0; }, "pulse_delay0_child", 0);
 		return 0;
 	}, "pulse_delay0_parent", 5));
 	set_pulse(5);
@@ -241,8 +241,8 @@ int main()
 	handler.Destroy();
 	int fired_victim = 0, fired_killer = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_victim; return 0; }, "pulse_victim", 10));
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_victim; return 0; }, "pulse_victim", 10));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t {
 		++fired_killer;
 		handler.RemoveEvent("pulse_victim");
 		return 0;
@@ -261,7 +261,7 @@ int main()
 	handler.Destroy();
 	set_global_time(0);
 	set_pulse(0);
-	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_gd", 10));
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "pulse_gd", 10));
 	assert(handler.GetDelay("pulse_gd") == 0);
 
 	// GetPulseDelay returns raw pulses remaining
@@ -281,7 +281,7 @@ int main()
 	// IsPulseEvent
 	handler.Destroy();
 	set_pulse(0);
-	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_ipe", 10));
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "pulse_ipe", 10));
 	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "sec_ipe", 10));
 	assert(handler.IsPulseEvent("pulse_ipe"));
 	assert(!handler.IsPulseEvent("sec_ipe"));
@@ -296,7 +296,7 @@ int main()
 	// FindEvent works for both types
 	handler.Destroy();
 	set_pulse(0);
-	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_fe", 10));
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "pulse_fe", 10));
 	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "sec_fe", 10));
 	assert(handler.FindEvent("pulse_fe"));
 	assert(handler.FindEvent("sec_fe"));
@@ -305,7 +305,7 @@ int main()
 	handler.Destroy();
 	set_global_time(0);
 	set_pulse(0);
-	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_de", 10));
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "pulse_de", 10));
 	handler.DelayEvent("pulse_de", 100);
 	assert(handler.GetPulseDelay("pulse_de") == 10);
 
@@ -317,7 +317,7 @@ int main()
 	set_global_time(0);
 	set_pulse(0);
 	assert(handler.AddEvent([&](SArgumentSupportImpl*) { ++fired_sec_mix; }, "sec_mix", 5));
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_pulse_mix; return 0; }, "pulse_mix", 10));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_pulse_mix; return 0; }, "pulse_mix", 10));
 	set_global_time(5);
 	set_pulse(5);
 	handler.Process();
@@ -331,14 +331,14 @@ int main()
 	handler.Destroy();
 	set_pulse(0);
 	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "shared_name", 5));
-	assert(!handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "shared_name", 10));
+	assert(!handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "shared_name", 10));
 
 	// Seconds fire before pulses within same Process()
 	handler.Destroy();
 	std::vector<int> order;
 	set_global_time(0);
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { order.push_back(2); return 0; }, "order_pulse", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { order.push_back(2); return 0; }, "order_pulse", 5));
 	assert(handler.AddEvent([&](SArgumentSupportImpl*) { order.push_back(1); }, "order_sec", 5));
 	set_global_time(5);
 	set_pulse(5);
@@ -361,7 +361,7 @@ int main()
 	handler.Destroy();
 	int fired_pd0 = 0;
 	set_pulse(50);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_pd0; return 0; }, "pd0_event", 0));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_pd0; return 0; }, "pd0_event", 0));
 	handler.Process();
 	assert(fired_pd0 == 0);
 	set_pulse(51);
@@ -372,9 +372,9 @@ int main()
 	handler.Destroy();
 	int fired_mp1 = 0, fired_mp2 = 0, fired_mp3 = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_mp1; return 0; }, "mp1", 5));
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_mp2; return 0; }, "mp2", 5));
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_mp3; return 0; }, "mp3", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_mp1; return 0; }, "mp1", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_mp2; return 0; }, "mp2", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_mp3; return 0; }, "mp3", 5));
 	set_pulse(5);
 	handler.Process();
 	assert(fired_mp1 == 1);
@@ -385,7 +385,7 @@ int main()
 	handler.Destroy();
 	int fired_neg = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_neg; return -1; }, "pulse_neg", 3));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_neg; return -1; }, "pulse_neg", 3));
 	set_pulse(3);
 	handler.Process();
 	assert(fired_neg == 1);
@@ -394,8 +394,8 @@ int main()
 	// Duplicate pulse event names rejected
 	handler.Destroy();
 	set_pulse(0);
-	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "dup_pulse", 5));
-	assert(!handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "dup_pulse", 10));
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "dup_pulse", 5));
+	assert(!handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 0; }, "dup_pulse", 10));
 
 	// === STALE / LIFECYCLE ===
 
@@ -403,9 +403,9 @@ int main()
 	handler.Destroy();
 	int fired_old = 0, fired_new = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_old; return 0; }, "stale_test", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_old; return 0; }, "stale_test", 5));
 	handler.RemoveEvent("stale_test");
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_new; return 0; }, "stale_test", 10));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_new; return 0; }, "stale_test", 10));
 	set_pulse(5);
 	handler.Process();
 	assert(fired_old == 0);
@@ -434,7 +434,7 @@ int main()
 	// Destroy clears all structures including queues
 	handler.Destroy();
 	set_pulse(0);
-	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 5; }, "destroy_p", 3));
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> int32_t { return 5; }, "destroy_p", 3));
 	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "destroy_s", 3));
 	handler.Destroy();
 	assert(!handler.FindEvent("destroy_p"));
@@ -450,7 +450,7 @@ int main()
 		handler.Destroy();
 		handler.AddEvent([&](SArgumentSupportImpl*) { ++fired_destroy_added; }, "post_destroy_event", 5);
 	}, "destroy_caller", 3));
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_destroy_cb2; return 5; }, "destroy_victim", 3));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_destroy_cb2; return 5; }, "destroy_victim", 3));
 	set_global_time(3);
 	set_pulse(3);
 	handler.Process();
@@ -467,7 +467,7 @@ int main()
 	handler.Destroy();
 	int fired_ext_rem = 0;
 	set_pulse(0);
-	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_ext_rem; return 0; }, "ext_rem_pulse", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++fired_ext_rem; return 0; }, "ext_rem_pulse", 5));
 	handler.RemoveEvent("ext_rem_pulse");
 	set_pulse(5);
 	handler.Process();
@@ -489,7 +489,7 @@ int main()
 		const std::string sec_name = "scale_sec_" + std::to_string(i);
 		const std::string pulse_name = "scale_pulse_" + std::to_string(i);
 		assert(handler.AddEvent([&](SArgumentSupportImpl*) { ++scale_sec_fired; }, sec_name, 10));
-		assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++scale_pulse_fired; return 0; }, pulse_name, 25));
+		assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> int32_t { ++scale_pulse_fired; return 0; }, pulse_name, 25));
 	}
 
 	// Remove every other one

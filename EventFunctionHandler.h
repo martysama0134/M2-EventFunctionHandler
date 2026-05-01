@@ -34,7 +34,7 @@ public:
 		Pulses,
 	};
 
-	using EventCallback = std::function<long(SArgumentSupportImpl*)>;
+	using EventCallback = std::function<int32_t(SArgumentSupportImpl*)>;
 
 	struct SEventRecord
 	{
@@ -66,7 +66,7 @@ public:
 
 	void Destroy();
 	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, std::string_view event_name, size_t time, bool loop = false);
-	bool AddPulseEvent(EventCallback func, std::string_view event_name, long pulseDelay);
+	bool AddPulseEvent(EventCallback func, std::string_view event_name, int32_t pulseDelay);
 	void RemoveEvent(std::string_view event_name);
 	void DelayEvent(std::string_view event_name, size_t newtime);
 	bool FindEvent(std::string_view event_name) const;

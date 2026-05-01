@@ -76,7 +76,7 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl*)> 
 	if (m_nameToId.contains(event_name))
 		return false;
 
-	EventCallback wrappedFunc = [wrapped = std::move(func)](SArgumentSupportImpl* arg) -> long
+	EventCallback wrappedFunc = [wrapped = std::move(func)](SArgumentSupportImpl* arg) -> int32_t
 	{
 		wrapped(arg);
 		return 0;
@@ -96,7 +96,7 @@ bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl*)> 
 	return true;
 }
 
-bool CEventFunctionHandler::AddPulseEvent(EventCallback func, const std::string_view event_name, long pulseDelay)
+bool CEventFunctionHandler::AddPulseEvent(EventCallback func, const std::string_view event_name, int32_t pulseDelay)
 {
 	if (m_nameToId.contains(event_name))
 		return false;
@@ -238,7 +238,7 @@ void CEventFunctionHandler::Process()
 
 	for (auto& [func, eventId, generation, timeBase] : collected)
 	{
-		const long result = func(nullptr);
+		const int32_t result = func(nullptr);
 
 		if (timeBase == ETimeBase::Pulses)
 		{

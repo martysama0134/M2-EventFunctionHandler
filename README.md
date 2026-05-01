@@ -103,14 +103,14 @@ Pulse events run on the server tick (typically 25 Hz). The callback returns the 
 
 ```cpp
 // One-shot pulse event — fires after 25 pulses (1 second at 25 Hz)
-CEventFunctionHandler::instance().AddPulseEvent([this](SArgumentSupportImpl*) -> long {
+CEventFunctionHandler::instance().AddPulseEvent([this](SArgumentSupportImpl*) -> int32_t {
 		this->UpdatePosition();
 		return 0; // don't reschedule
 	}, "POSITION_UPDATE", passes_per_sec
 );
 
 // Repeating pulse event with dynamic delay
-CEventFunctionHandler::instance().AddPulseEvent([this](SArgumentSupportImpl*) -> long {
+CEventFunctionHandler::instance().AddPulseEvent([this](SArgumentSupportImpl*) -> int32_t {
 		this->ProcessAI();
 		return passes_per_sec / 5; // reschedule every 200ms
 	}, "AI_TICK", passes_per_sec / 5
