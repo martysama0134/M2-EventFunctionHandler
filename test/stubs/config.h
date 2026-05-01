@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 
 inline int passes_per_sec = 25;
 inline size_t g_test_pulse = 0;
