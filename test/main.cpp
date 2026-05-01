@@ -255,5 +255,243 @@ int main()
 	handler.Process();
 	assert(fired_victim == 0);
 
+	// === QUERY API ===
+
+	// GetDelay returns 0 for pulse events
+	handler.Destroy();
+	set_global_time(0);
+	set_pulse(0);
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_gd", 10));
+	assert(handler.GetDelay("pulse_gd") == 0);
+
+	// GetPulseDelay returns raw pulses remaining
+	assert(handler.GetPulseDelay("pulse_gd") == 10);
+	set_pulse(3);
+	assert(handler.GetPulseDelay("pulse_gd") == 7);
+
+	// GetPulseDelay returns 0 for seconds events
+	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "sec_gpd", 10));
+	assert(handler.GetPulseDelay("sec_gpd") == 0);
+
+	// GetPulseDelay returns 0 for missing/removed events
+	assert(handler.GetPulseDelay("nonexistent") == 0);
+	handler.RemoveEvent("pulse_gd");
+	assert(handler.GetPulseDelay("pulse_gd") == 0);
+
+	// IsPulseEvent
+	handler.Destroy();
+	set_pulse(0);
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_ipe", 10));
+	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "sec_ipe", 10));
+	assert(handler.IsPulseEvent("pulse_ipe"));
+	assert(!handler.IsPulseEvent("sec_ipe"));
+	assert(!handler.IsPulseEvent("nonexistent"));
+
+	// IsPulseEvent after name reuse (pulse removed, seconds added with same name)
+	handler.RemoveEvent("pulse_ipe");
+	assert(!handler.IsPulseEvent("pulse_ipe"));
+	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "pulse_ipe", 10));
+	assert(!handler.IsPulseEvent("pulse_ipe"));
+
+	// FindEvent works for both types
+	handler.Destroy();
+	set_pulse(0);
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_fe", 10));
+	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "sec_fe", 10));
+	assert(handler.FindEvent("pulse_fe"));
+	assert(handler.FindEvent("sec_fe"));
+
+	// DelayEvent silently ignores pulse events
+	handler.Destroy();
+	set_global_time(0);
+	set_pulse(0);
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "pulse_de", 10));
+	handler.DelayEvent("pulse_de", 100);
+	assert(handler.GetPulseDelay("pulse_de") == 10);
+
+	// === MIXED ===
+
+	// Seconds + pulse coexist, fire independently
+	handler.Destroy();
+	int fired_sec_mix = 0, fired_pulse_mix = 0;
+	set_global_time(0);
+	set_pulse(0);
+	assert(handler.AddEvent([&](SArgumentSupportImpl*) { ++fired_sec_mix; }, "sec_mix", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_pulse_mix; return 0; }, "pulse_mix", 10));
+	set_global_time(5);
+	set_pulse(5);
+	handler.Process();
+	assert(fired_sec_mix == 1);
+	assert(fired_pulse_mix == 0);
+	set_pulse(10);
+	handler.Process();
+	assert(fired_pulse_mix == 1);
+
+	// Same-name collision (shared namespace)
+	handler.Destroy();
+	set_pulse(0);
+	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "shared_name", 5));
+	assert(!handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "shared_name", 10));
+
+	// Seconds fire before pulses within same Process()
+	handler.Destroy();
+	std::vector<int> order;
+	set_global_time(0);
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { order.push_back(2); return 0; }, "order_pulse", 5));
+	assert(handler.AddEvent([&](SArgumentSupportImpl*) { order.push_back(1); }, "order_sec", 5));
+	set_global_time(5);
+	set_pulse(5);
+	handler.Process();
+	assert(order.size() == 2);
+	assert(order[0] == 1);
+	assert(order[1] == 2);
+
+	// === EDGE CASES ===
+
+	// AddEvent with time=0 fires on next Process
+	handler.Destroy();
+	int fired_time0 = 0;
+	set_global_time(100);
+	assert(handler.AddEvent([&](SArgumentSupportImpl*) { ++fired_time0; }, "time0_event", 0));
+	handler.Process();
+	assert(fired_time0 == 1);
+
+	// AddPulseEvent with delay=0 clamped to 1
+	handler.Destroy();
+	int fired_pd0 = 0;
+	set_pulse(50);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_pd0; return 0; }, "pd0_event", 0));
+	handler.Process();
+	assert(fired_pd0 == 0);
+	set_pulse(51);
+	handler.Process();
+	assert(fired_pd0 == 1);
+
+	// Multiple pulse events same tick
+	handler.Destroy();
+	int fired_mp1 = 0, fired_mp2 = 0, fired_mp3 = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_mp1; return 0; }, "mp1", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_mp2; return 0; }, "mp2", 5));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_mp3; return 0; }, "mp3", 5));
+	set_pulse(5);
+	handler.Process();
+	assert(fired_mp1 == 1);
+	assert(fired_mp2 == 1);
+	assert(fired_mp3 == 1);
+
+	// Callback returns negative — treated as stop
+	handler.Destroy();
+	int fired_neg = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_neg; return -1; }, "pulse_neg", 3));
+	set_pulse(3);
+	handler.Process();
+	assert(fired_neg == 1);
+	assert(!handler.FindEvent("pulse_neg"));
+
+	// Duplicate pulse event names rejected
+	handler.Destroy();
+	set_pulse(0);
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "dup_pulse", 5));
+	assert(!handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 0; }, "dup_pulse", 10));
+
+	// === STALE / LIFECYCLE ===
+
+	// Remove + re-add same name — old heap entry doesn't fire new event
+	handler.Destroy();
+	int fired_old = 0, fired_new = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_old; return 0; }, "stale_test", 5));
+	handler.RemoveEvent("stale_test");
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_new; return 0; }, "stale_test", 10));
+	set_pulse(5);
+	handler.Process();
+	assert(fired_old == 0);
+	assert(fired_new == 0);
+	set_pulse(10);
+	handler.Process();
+	assert(fired_old == 0);
+	assert(fired_new == 1);
+
+	// Looped seconds callback removes itself
+	handler.Destroy();
+	int fired_loop_selfrem = 0;
+	set_global_time(0);
+	assert(handler.AddEvent([&](SArgumentSupportImpl*) {
+		++fired_loop_selfrem;
+		handler.RemoveEvent("loop_selfrem");
+	}, "loop_selfrem", 3, true));
+	set_global_time(3);
+	handler.Process();
+	assert(fired_loop_selfrem == 1);
+	assert(!handler.FindEvent("loop_selfrem"));
+	set_global_time(6);
+	handler.Process();
+	assert(fired_loop_selfrem == 1);
+
+	// Destroy clears all structures including queues
+	handler.Destroy();
+	set_pulse(0);
+	assert(handler.AddPulseEvent([](SArgumentSupportImpl*) -> long { return 5; }, "destroy_p", 3));
+	assert(handler.AddEvent([](SArgumentSupportImpl*) {}, "destroy_s", 3));
+	handler.Destroy();
+	assert(!handler.FindEvent("destroy_p"));
+	assert(!handler.FindEvent("destroy_s"));
+
+	// External RemoveEvent on pending pulse event
+	handler.Destroy();
+	int fired_ext_rem = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_ext_rem; return 0; }, "ext_rem_pulse", 5));
+	handler.RemoveEvent("ext_rem_pulse");
+	set_pulse(5);
+	handler.Process();
+	assert(fired_ext_rem == 0);
+
+	// === SCALE ===
+
+	// 1000+ events with mixed adds, removes, reschedules
+	handler.Destroy();
+	set_global_time(0);
+	set_pulse(0);
+
+	constexpr int SCALE_COUNT = 1200;
+	int scale_sec_fired = 0;
+	int scale_pulse_fired = 0;
+
+	for (int i = 0; i < SCALE_COUNT; ++i)
+	{
+		const std::string sec_name = "scale_sec_" + std::to_string(i);
+		const std::string pulse_name = "scale_pulse_" + std::to_string(i);
+		assert(handler.AddEvent([&](SArgumentSupportImpl*) { ++scale_sec_fired; }, sec_name, 10));
+		assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++scale_pulse_fired; return 0; }, pulse_name, 25));
+	}
+
+	// Remove every other one
+	for (int i = 0; i < SCALE_COUNT; i += 2)
+	{
+		handler.RemoveEvent("scale_sec_" + std::to_string(i));
+		handler.RemoveEvent("scale_pulse_" + std::to_string(i));
+	}
+
+	set_global_time(10);
+	set_pulse(25);
+	handler.Process();
+
+	assert(scale_sec_fired == SCALE_COUNT / 2);
+	assert(scale_pulse_fired == SCALE_COUNT / 2);
+
+	// All should be gone now (one-shot)
+	for (int i = 0; i < SCALE_COUNT; ++i)
+	{
+		assert(!handler.FindEvent("scale_sec_" + std::to_string(i)));
+		assert(!handler.FindEvent("scale_pulse_" + std::to_string(i)));
+	}
+
+	handler.Destroy();
+
 	return 0;
 }
+
