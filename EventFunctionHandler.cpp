@@ -31,11 +31,6 @@ void CEventFunctionHandler::ReleaseId(const uint32_t id)
 	m_freeIds.push_back(id);
 }
 
-CEventFunctionHandler::MinHeap& CEventFunctionHandler::GetQueue(const ETimeBase timeBase)
-{
-	return timeBase == ETimeBase::Pulses ? m_pulseQueue : m_secondsQueue;
-}
-
 const CEventFunctionHandler::SEventRecord* CEventFunctionHandler::GetRecordByName(const std::string_view event_name) const
 {
 	if (const auto it = m_nameToId.find(event_name); it != m_nameToId.end())

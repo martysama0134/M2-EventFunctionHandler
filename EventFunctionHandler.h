@@ -6,14 +6,12 @@
 
 #pragma once
 #include "utils.h"
-#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <queue>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 struct SArgumentSupportImpl {}; // keep for v1 compatibility
@@ -80,7 +78,6 @@ public:
 private:
 	uint32_t AllocateId();
 	void ReleaseId(uint32_t id);
-	MinHeap& GetQueue(ETimeBase timeBase);
 	const SEventRecord* GetRecordByName(std::string_view event_name) const;
 	SEventRecord* GetRecordByName(std::string_view event_name);
 	void RebuildQueueIfNeeded(MinHeap& queue, ETimeBase timeBase, size_t staleCount);

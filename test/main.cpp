@@ -440,6 +440,29 @@ int main()
 	assert(!handler.FindEvent("destroy_p"));
 	assert(!handler.FindEvent("destroy_s"));
 
+	// Destroy during callback — remaining callbacks fire, new adds go to fresh state
+	handler.Destroy();
+	int fired_destroy_cb1 = 0, fired_destroy_cb2 = 0, fired_destroy_added = 0;
+	set_global_time(0);
+	set_pulse(0);
+	assert(handler.AddEvent([&](SArgumentSupportImpl*) {
+		++fired_destroy_cb1;
+		handler.Destroy();
+		handler.AddEvent([&](SArgumentSupportImpl*) { ++fired_destroy_added; }, "post_destroy_event", 5);
+	}, "destroy_caller", 3));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_destroy_cb2; return 5; }, "destroy_victim", 3));
+	set_global_time(3);
+	set_pulse(3);
+	handler.Process();
+	assert(fired_destroy_cb1 == 1);
+	assert(fired_destroy_cb2 == 1);
+	assert(handler.FindEvent("post_destroy_event"));
+	assert(!handler.FindEvent("destroy_caller"));
+	assert(!handler.FindEvent("destroy_victim"));
+	set_global_time(8);
+	handler.Process();
+	assert(fired_destroy_added == 1);
+
 	// External RemoveEvent on pending pulse event
 	handler.Destroy();
 	int fired_ext_rem = 0;
