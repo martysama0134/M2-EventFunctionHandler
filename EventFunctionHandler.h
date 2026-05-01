@@ -6,13 +6,13 @@
 
 #pragma once
 #include "utils.h"
-#include <algorithm>
+#include <cstdint>
 #include <functional>
-#include <memory>
+#include <utility>
+#include <queue>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 struct SArgumentSupportImpl {}; // keep for v1 compatibility
@@ -28,37 +28,64 @@ struct StringHash
 
 class CEventFunctionHandler : public singleton<CEventFunctionHandler>
 {
-	struct SFunctionHandler
+public:
+	enum class ETimeBase : uint8_t
 	{
-		std::function<void(SArgumentSupportImpl *)> func;
-		size_t time{};
-		size_t loopTime{};
-
-		SFunctionHandler(std::function<void(SArgumentSupportImpl*)> _func, const size_t _time, const bool _loop = false)
-			: func(std::move(_func)),
-			  time(_time + get_global_time()),
-			  loopTime(_loop ? _time : 0) {}
-
-		void UpdateTime(const size_t newtime) { time = newtime + get_global_time(); }
-
-		bool IsLooped() const { return loopTime != 0; }
-		void UpdateNextLoopTime() { time = loopTime + get_global_time(); }
+		Seconds,
+		Pulses,
 	};
 
-public:
+	using EventCallback = std::function<int32_t(SArgumentSupportImpl*)>;
+
+	struct SEventRecord
+	{
+		EventCallback func;
+		ETimeBase timeBase{ETimeBase::Seconds};
+		size_t dueAt{};
+		int64_t loopTime{};
+		uint32_t generation{};
+		std::string name;
+		bool active{false};
+	};
+
+	struct SHeapEntry
+	{
+		size_t dueAt{};
+		uint32_t eventId{};
+		uint32_t generation{};
+
+		bool operator>(const SHeapEntry& rhs) const noexcept
+		{
+			return dueAt > rhs.dueAt;
+		}
+	};
+
+	using MinHeap = std::priority_queue<SHeapEntry, std::vector<SHeapEntry>, std::greater<SHeapEntry>>;
+
 	CEventFunctionHandler() = default;
-	virtual ~CEventFunctionHandler() = default; // Destroy() only clears up std containers so no need to explicitly call it here
+	virtual ~CEventFunctionHandler() = default;
 
 	void Destroy();
-	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, const std::string_view event_name, const size_t time, const bool loop = false);
-	void RemoveEvent(const std::string_view event_name);
-	void DelayEvent(const std::string_view event_name, const size_t newtime);
-	bool FindEvent(const std::string_view event_name) const;
-	DWORD GetDelay(const std::string_view event_name) const;
+	bool AddEvent(std::function<void(SArgumentSupportImpl*)> func, std::string_view event_name, size_t time, bool loop = false);
+	bool AddPulseEvent(EventCallback func, std::string_view event_name, int32_t pulseDelay);
+	void RemoveEvent(std::string_view event_name);
+	void DelayEvent(std::string_view event_name, size_t newtime);
+	bool FindEvent(std::string_view event_name) const;
+	DWORD GetDelay(std::string_view event_name) const;
+	DWORD GetPulseDelay(std::string_view event_name) const;
+	bool IsPulseEvent(std::string_view event_name) const;
 	void Process();
 
 private:
-	const SFunctionHandler* GetHandlerByName(std::string_view event_name) const;
-	SFunctionHandler* GetHandlerByName(std::string_view event_name);
-	std::unordered_map<std::string, std::unique_ptr<SFunctionHandler>, StringHash, std::equal_to<>> m_event;
+	uint32_t AllocateId();
+	void ReleaseId(uint32_t id);
+	const SEventRecord* GetRecordByName(std::string_view event_name) const;
+	SEventRecord* GetRecordByName(std::string_view event_name);
+	void RebuildQueueIfNeeded(MinHeap& queue, ETimeBase timeBase, size_t staleCount);
+
+	std::unordered_map<std::string, uint32_t, StringHash, std::equal_to<>> m_nameToId;
+	std::vector<SEventRecord> m_events;
+	std::vector<uint32_t> m_freeIds;
+	MinHeap m_secondsQueue;
+	MinHeap m_pulseQueue;
 };
