@@ -1,4 +1,5 @@
 #include "EventFunctionHandler.h"
+#include "config.h"
 #include <cassert>
 #include <string>
 
@@ -117,6 +118,142 @@ int main()
 	// Destroy clears all
 	handler.Destroy();
 	assert(!handler.FindEvent("remover"));
+
+	// === PULSE BASICS ===
+
+	// AddPulseEvent fires at correct pulse
+	handler.Destroy();
+	int fired_pulse = 0;
+	set_global_time(0);
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_pulse; return 0; }, "pulse_once", 10));
+	set_pulse(9);
+	handler.Process();
+	assert(fired_pulse == 0);
+	set_pulse(10);
+	handler.Process();
+	assert(fired_pulse == 1);
+	assert(!handler.FindEvent("pulse_once"));
+
+	// Return > 0 reschedules
+	handler.Destroy();
+	int fired_resched = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_resched; return 5; }, "pulse_resched", 10));
+	set_pulse(10);
+	handler.Process();
+	assert(fired_resched == 1);
+	assert(handler.FindEvent("pulse_resched"));
+	set_pulse(14);
+	handler.Process();
+	assert(fired_resched == 1);
+	set_pulse(15);
+	handler.Process();
+	assert(fired_resched == 2);
+
+	// Dynamic delay — different return each invocation
+	handler.Destroy();
+	int dynamic_count = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+		++dynamic_count;
+		if (dynamic_count == 1) return 10;
+		if (dynamic_count == 2) return 5;
+		return 0;
+	}, "pulse_dynamic", 3));
+	set_pulse(3);
+	handler.Process();
+	assert(dynamic_count == 1);
+	set_pulse(13);
+	handler.Process();
+	assert(dynamic_count == 2);
+	set_pulse(18);
+	handler.Process();
+	assert(dynamic_count == 3);
+	assert(!handler.FindEvent("pulse_dynamic"));
+
+	// Off-by-one: delay 1 fires at N+1
+	handler.Destroy();
+	int fired_offbyone = 0;
+	set_pulse(100);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_offbyone; return 0; }, "pulse_obo", 1));
+	handler.Process();
+	assert(fired_offbyone == 0);
+	set_pulse(101);
+	handler.Process();
+	assert(fired_offbyone == 1);
+
+	// === PULSE SAFETY ===
+
+	// Pulse self-remove from callback
+	handler.Destroy();
+	int fired_selfrem = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+		++fired_selfrem;
+		handler.RemoveEvent("pulse_selfrem");
+		return 5;
+	}, "pulse_selfrem", 3));
+	set_pulse(3);
+	handler.Process();
+	assert(fired_selfrem == 1);
+	assert(!handler.FindEvent("pulse_selfrem"));
+	set_pulse(100);
+	handler.Process();
+	assert(fired_selfrem == 1);
+
+	// Re-add same name from inside pulse callback
+	handler.Destroy();
+	int fired_readd_orig = 0, fired_readd_new = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+		++fired_readd_orig;
+		handler.RemoveEvent("pulse_readd");
+		handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_readd_new; return 0; }, "pulse_readd", 5);
+		return 0;
+	}, "pulse_readd", 3));
+	set_pulse(3);
+	handler.Process();
+	assert(fired_readd_orig == 1);
+	assert(handler.FindEvent("pulse_readd"));
+	assert(fired_readd_new == 0);
+	set_pulse(8);
+	handler.Process();
+	assert(fired_readd_new == 1);
+
+	// Callback adds pulse event with delay 0 (clamped to 1)
+	handler.Destroy();
+	int fired_delay0 = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+		handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_delay0; return 0; }, "pulse_delay0_child", 0);
+		return 0;
+	}, "pulse_delay0_parent", 5));
+	set_pulse(5);
+	handler.Process();
+	assert(fired_delay0 == 0);
+	assert(handler.FindEvent("pulse_delay0_child"));
+	set_pulse(6);
+	handler.Process();
+	assert(fired_delay0 == 1);
+
+	// Callback removes a different pulse event
+	handler.Destroy();
+	int fired_victim = 0, fired_killer = 0;
+	set_pulse(0);
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long { ++fired_victim; return 0; }, "pulse_victim", 10));
+	assert(handler.AddPulseEvent([&](SArgumentSupportImpl*) -> long {
+		++fired_killer;
+		handler.RemoveEvent("pulse_victim");
+		return 0;
+	}, "pulse_killer", 5));
+	set_pulse(5);
+	handler.Process();
+	assert(fired_killer == 1);
+	assert(!handler.FindEvent("pulse_victim"));
+	set_pulse(10);
+	handler.Process();
+	assert(fired_victim == 0);
 
 	return 0;
 }
