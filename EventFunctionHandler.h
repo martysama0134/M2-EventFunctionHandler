@@ -12,17 +12,9 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <type_traits>
 #include <utility>
 #include <vector>
-
-struct StringHash
-{
-	using is_transparent = void;
-	size_t operator()(std::string_view sv) const noexcept
-	{
-		return std::hash<std::string_view>{}(sv);
-	}
-};
 
 class CEventFunctionHandler : public singleton<CEventFunctionHandler>
 {
@@ -92,6 +84,15 @@ private:
 	SEventRecord* GetRecordByName(std::string_view name);
 	EventHandle ResolveHandle(std::string_view name) const;
 	void RebuildQueueIfNeeded(MinHeap& queue, ETimeBase timeBase, size_t staleCount, size_t preDrainSize);
+
+	struct StringHash
+	{
+		using is_transparent = void;
+		size_t operator()(std::string_view sv) const noexcept
+		{
+			return std::hash<std::string_view>{}(sv);
+		}
+	};
 
 	std::unordered_map<std::string, uint32_t, StringHash, std::equal_to<>> m_nameToId;
 	std::vector<SEventRecord> m_events;
