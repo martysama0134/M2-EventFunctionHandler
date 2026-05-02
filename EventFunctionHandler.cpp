@@ -143,7 +143,7 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEvent(EventCal
 
 CEventFunctionHandler::EventHandle CEventFunctionHandler::AddLoopEvent(EventCallback func, const std::string_view name, const size_t interval)
 {
-	if (name.empty() || !func || interval == 0 || m_nameToId.contains(name))
+	if (name.empty() || !func || interval == 0 || interval > static_cast<size_t>(INT64_MAX) || m_nameToId.contains(name))
 		return {};
 
 	const auto now = get_global_time();
@@ -366,7 +366,16 @@ void CEventFunctionHandler::Process()
 		}
 		else if (postRecord.loopTime > 0)
 		{
-			postRecord.dueAt = now + static_cast<size_t>(postRecord.loopTime);
+			const auto loopDueAt = now + static_cast<size_t>(postRecord.loopTime);
+			if (loopDueAt < now)
+			{
+				const auto nameIt = m_nameToId.find(postRecord.name);
+				if (nameIt != m_nameToId.end())
+					m_nameToId.erase(nameIt);
+				ReleaseId(eventId);
+				continue;
+			}
+			postRecord.dueAt = loopDueAt;
 			++postRecord.heapSeq;
 			queue.push(SHeapEntry{postRecord.dueAt, eventId, postRecord.heapSeq});
 		}
