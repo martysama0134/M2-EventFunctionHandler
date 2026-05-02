@@ -19,6 +19,7 @@ A C++20 event scheduler for Metin2 game servers. Supports seconds-based timers a
 - **10k+ event scale** — integer-ID internals, dual priority queues, O(log n) scheduling
 - **Safe re-entrancy** — collect-then-fire execution model prevents UB on self/cross-removal
 - **Unified callback** — `std::function<int32_t()>`, return > 0 to reschedule
+- **v2 backward compatible** — old `SArgumentSupportImpl*` callbacks compile without changes
 
 ## Integration
 
@@ -74,22 +75,27 @@ Download [master.zip](../../archive/refs/heads/main.zip), and add the included f
 
 ### Seconds-Based Events
 
-All callbacks are `std::function<int32_t()>`. Return `0` to fire once, return `> 0` to reschedule after that many seconds.
+Callbacks can be `void` (one-shot) or return `int32_t` (return `0` to stop, `> 0` to reschedule after that many seconds).
 
 ```cpp
 auto& handler = CEventFunctionHandler::instance();
 
-// One-shot event — fires once after 5 seconds
-auto h = handler.AddEvent([this]() -> int32_t {
+// One-shot event — void lambda, fires once after 5 seconds
+auto h = handler.AddEvent([this]() {
 		this->SendNotificationToAll();
-		return 0;
 	}, "MY_BEAUTIFUL_EVENT", std::chrono::seconds(5).count()
 );
 
+// One-shot with rescheduling — return > 0 to repeat
+handler.AddEvent([this]() -> int32_t {
+		this->Tick();
+		return 3; // reschedule after 3 seconds
+	}, "MY_TICKER", 5
+);
+
 // Looped event — repeats every 5 minutes
-handler.AddLoopEvent([this]() -> int32_t {
+handler.AddLoopEvent([this]() {
 		this->SendNotificationToAll();
-		return 0; // return > 0 overrides interval for next cycle
 	}, "MY_LOOP_EVENT", std::chrono::minutes(5).count()
 );
 
@@ -106,15 +112,14 @@ bool removed = handler.RemoveEvent(h);
 
 ### Pulse-Based Events
 
-Pulse events run on the server tick (typically 25 Hz). Return `> 0` to reschedule after that many pulses, `<= 0` to stop.
+Pulse events run on the server tick (typically 25 Hz). Void callbacks fire once. Return `> 0` to reschedule after that many pulses, `<= 0` to stop.
 
 ```cpp
 auto& handler = CEventFunctionHandler::instance();
 
-// One-shot pulse event — fires after 25 pulses (1 second at 25 Hz)
-auto h = handler.AddPulseEvent([this]() -> int32_t {
+// One-shot pulse event — void lambda, fires once after 25 pulses
+auto h = handler.AddPulseEvent([this]() {
 		this->UpdatePosition();
-		return 0; // don't reschedule
 	}, "POSITION_UPDATE", passes_per_sec
 );
 
@@ -148,11 +153,29 @@ handler.FindEvent(h);        // false — handle is stale
 handler.FindEvent("MY_EVENT");     // equivalent string lookup
 ```
 
+### v2 Backward Compatibility
+
+Existing v2 code compiles without changes. The `SArgumentSupportImpl*` parameter is accepted and ignored:
+
+```cpp
+// v2 code — works unchanged on v4
+CEventFunctionHandler::instance().AddEvent([this](SArgumentSupportImpl*) {
+		this->BroadcastAlert();
+	}, "MY_EVENT", cooldown
+);
+
+// v2 looped event — also works unchanged
+CEventFunctionHandler::instance().AddEvent([this](SArgumentSupportImpl*) {
+		this->DoStuff();
+	}, "MY_LOOP", 1, true
+);
+```
+
 ### API Reference
 
 | Method | Returns | Description |
 |---|---|---|
-| `AddEvent(func, name, time)` | `EventHandle` | One-shot seconds event. Return > 0 from callback to reschedule. |
+| `AddEvent(func, name, time, loop)` | `EventHandle` | Seconds event. Void callback = one-shot. Return > 0 to reschedule. `loop=true` for fixed-interval repeat. |
 | `AddLoopEvent(func, name, interval)` | `EventHandle` | Looped seconds event. Repeats at interval unless callback returns > 0. |
 | `AddPulseEvent(func, name, pulseDelay)` | `EventHandle` | Pulse event. Callback returns next delay (> 0 reschedule, <= 0 stop). |
 | `RemoveEvent(handle\|name)` | `bool` | Remove event. Returns true if found. |
