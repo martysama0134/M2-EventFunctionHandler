@@ -10,6 +10,7 @@ add_executable(event_handler_test
     test/test_seconds.cpp
     test/test_pulse.cpp
     test/test_safety.cpp
+    test/test_query.cpp
 )
 
 target_include_directories(event_handler_test PRIVATE
