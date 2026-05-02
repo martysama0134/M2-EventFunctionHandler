@@ -6,12 +6,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(event_handler_test
     EventFunctionHandler.cpp
-    test/main.cpp
+    test/test_main.cpp
 )
 
 target_include_directories(event_handler_test PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/test/stubs
+    ${CMAKE_SOURCE_DIR}/test
 )
 
 enable_testing()
