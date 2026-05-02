@@ -14,6 +14,9 @@ uint32_t CEventFunctionHandler::AllocateId()
 	{
 		const uint32_t id = m_freeIds.back();
 		m_freeIds.pop_back();
+		auto& record = m_events[id];
+		record.func = nullptr;
+		record.name.clear();
 		return id;
 	}
 	const uint32_t id = static_cast<uint32_t>(m_events.size());
@@ -25,15 +28,13 @@ void CEventFunctionHandler::ReleaseId(const uint32_t id)
 {
 	auto& record = m_events[id];
 	record.active = false;
-	record.func = nullptr;
-	record.name.clear();
 	++record.generation;
 	m_freeIds.push_back(id);
 }
 
-const CEventFunctionHandler::SEventRecord* CEventFunctionHandler::GetRecordByName(const std::string_view event_name) const
+const CEventFunctionHandler::SEventRecord* CEventFunctionHandler::GetRecordByName(const std::string_view name) const
 {
-	if (const auto it = m_nameToId.find(event_name); it != m_nameToId.end())
+	if (const auto it = m_nameToId.find(name); it != m_nameToId.end())
 	{
 		const auto& record = m_events[it->second];
 		if (record.active)
@@ -42,14 +43,25 @@ const CEventFunctionHandler::SEventRecord* CEventFunctionHandler::GetRecordByNam
 	return nullptr;
 }
 
-CEventFunctionHandler::SEventRecord* CEventFunctionHandler::GetRecordByName(const std::string_view event_name)
+CEventFunctionHandler::SEventRecord* CEventFunctionHandler::GetRecordByName(const std::string_view name)
 {
-	return const_cast<SEventRecord*>(std::as_const(*this).GetRecordByName(event_name));
+	return const_cast<SEventRecord*>(std::as_const(*this).GetRecordByName(name));
 }
 
-void CEventFunctionHandler::RebuildQueueIfNeeded(MinHeap& queue, const ETimeBase timeBase, const size_t staleCount)
+CEventFunctionHandler::EventHandle CEventFunctionHandler::ResolveHandle(const std::string_view name) const
 {
-	if (queue.empty() || staleCount * 2 <= queue.size())
+	if (const auto it = m_nameToId.find(name); it != m_nameToId.end())
+	{
+		const auto& record = m_events[it->second];
+		if (record.active)
+			return EventHandle{it->second, record.generation};
+	}
+	return {};
+}
+
+void CEventFunctionHandler::RebuildQueueIfNeeded(MinHeap& queue, const ETimeBase timeBase, const size_t staleCount, const size_t preDrainSize)
+{
+	if (preDrainSize == 0 || staleCount * 2 <= preDrainSize)
 		return;
 
 	MinHeap fresh;
@@ -57,132 +69,231 @@ void CEventFunctionHandler::RebuildQueueIfNeeded(MinHeap& queue, const ETimeBase
 	{
 		const auto& record = m_events[id];
 		if (record.active && record.timeBase == timeBase)
-			fresh.push(SHeapEntry{record.dueAt, id, record.generation});
+			fresh.push(SHeapEntry{record.dueAt, id, record.heapSeq});
 	}
 	queue = std::move(fresh);
 }
 
 void CEventFunctionHandler::Destroy()
 {
-	m_nameToId.clear();
-	m_events.clear();
 	m_freeIds.clear();
+	for (uint32_t id = 0; id < static_cast<uint32_t>(m_events.size()); ++id)
+	{
+		auto& record = m_events[id];
+		record.active = false;
+		++record.generation;
+		m_freeIds.push_back(id);
+	}
+	m_nameToId.clear();
 	m_secondsQueue = MinHeap{};
 	m_pulseQueue = MinHeap{};
 }
 
-bool CEventFunctionHandler::AddEvent(std::function<void(SArgumentSupportImpl*)> func, const std::string_view event_name, const size_t time, const bool loop)
+CEventFunctionHandler::EventHandle CEventFunctionHandler::AddEvent(EventCallback func, const std::string_view name, const size_t time)
 {
-	if (m_nameToId.contains(event_name))
-		return false;
+	if (name.empty() || !func || m_nameToId.contains(name))
+		return {};
 
-	EventCallback wrappedFunc = [wrapped = std::move(func)](SArgumentSupportImpl* arg) -> int32_t
-	{
-		wrapped(arg);
-		return 0;
-	};
+	const auto now = get_global_time();
+	if (time > 0 && now + time < now)
+		return {};
 
 	const uint32_t id = AllocateId();
 	auto& record = m_events[id];
-	record.func = std::move(wrappedFunc);
+	record.func = std::move(func);
 	record.timeBase = ETimeBase::Seconds;
-	record.dueAt = get_global_time() + time;
-	record.loopTime = loop ? static_cast<int64_t>(time) : 0;
-	record.name = std::string(event_name);
+	record.dueAt = now + time;
+	record.loopTime = 0;
+	record.name = std::string(name);
 	record.active = true;
+	++record.heapSeq;
 
 	m_nameToId.emplace(record.name, id);
-	m_secondsQueue.push(SHeapEntry{record.dueAt, id, record.generation});
-	return true;
+	m_secondsQueue.push(SHeapEntry{record.dueAt, id, record.heapSeq});
+	return EventHandle{id, record.generation};
 }
 
-bool CEventFunctionHandler::AddPulseEvent(EventCallback func, const std::string_view event_name, int32_t pulseDelay)
+CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEvent(EventCallback func, const std::string_view name, int32_t pulseDelay)
 {
-	if (m_nameToId.contains(event_name))
-		return false;
+	if (name.empty() || !func || m_nameToId.contains(name))
+		return {};
 
 	if (pulseDelay <= 0)
 		pulseDelay = 1;
+
+	const auto now = thecore_pulse();
+	const auto dueAt = now + static_cast<size_t>(pulseDelay);
+	if (dueAt < now)
+		return {};
 
 	const uint32_t id = AllocateId();
 	auto& record = m_events[id];
 	record.func = std::move(func);
 	record.timeBase = ETimeBase::Pulses;
-	record.dueAt = thecore_pulse() + static_cast<size_t>(pulseDelay);
+	record.dueAt = dueAt;
 	record.loopTime = 0;
-	record.name = std::string(event_name);
+	record.name = std::string(name);
 	record.active = true;
+	++record.heapSeq;
 
 	m_nameToId.emplace(record.name, id);
-	m_pulseQueue.push(SHeapEntry{record.dueAt, id, record.generation});
+	m_pulseQueue.push(SHeapEntry{record.dueAt, id, record.heapSeq});
+	return EventHandle{id, record.generation};
+}
+
+CEventFunctionHandler::EventHandle CEventFunctionHandler::AddLoopEvent(EventCallback func, const std::string_view name, const size_t interval)
+{
+	if (name.empty() || !func || interval == 0 || m_nameToId.contains(name))
+		return {};
+
+	const auto now = get_global_time();
+	if (now + interval < now)
+		return {};
+
+	const uint32_t id = AllocateId();
+	auto& record = m_events[id];
+	record.func = std::move(func);
+	record.timeBase = ETimeBase::Seconds;
+	record.dueAt = now + interval;
+	record.loopTime = static_cast<int64_t>(interval);
+	record.name = std::string(name);
+	record.active = true;
+	++record.heapSeq;
+
+	m_nameToId.emplace(record.name, id);
+	m_secondsQueue.push(SHeapEntry{record.dueAt, id, record.heapSeq});
+	return EventHandle{id, record.generation};
+}
+
+bool CEventFunctionHandler::RemoveEvent(const EventHandle handle)
+{
+	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+		return false;
+
+	auto& record = m_events[handle.id];
+	if (!record.active || record.generation != handle.generation)
+		return false;
+
+	const auto nameIt = m_nameToId.find(record.name);
+	if (nameIt != m_nameToId.end())
+		m_nameToId.erase(nameIt);
+	ReleaseId(handle.id);
 	return true;
 }
 
-void CEventFunctionHandler::RemoveEvent(const std::string_view event_name)
+bool CEventFunctionHandler::RemoveEvent(const std::string_view name)
 {
-	if (const auto it = m_nameToId.find(event_name); it != m_nameToId.end())
-	{
-		ReleaseId(it->second);
-		m_nameToId.erase(it);
-	}
+	return RemoveEvent(ResolveHandle(name));
 }
 
-void CEventFunctionHandler::DelayEvent(const std::string_view event_name, const size_t newtime)
+bool CEventFunctionHandler::DelayEvent(const EventHandle handle, const size_t newtime)
 {
-	auto* record = GetRecordByName(event_name);
-	if (!record || record->timeBase != ETimeBase::Seconds || record->loopTime != 0)
-		return;
+	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+		return false;
 
-	const auto it = m_nameToId.find(event_name);
-	const uint32_t id = it->second;
+	auto& record = m_events[handle.id];
+	if (!record.active || record.generation != handle.generation)
+		return false;
 
-	++record->generation;
-	record->dueAt = get_global_time() + newtime;
-	m_secondsQueue.push(SHeapEntry{record->dueAt, id, record->generation});
+	if (record.timeBase != ETimeBase::Seconds || record.loopTime != 0)
+		return false;
+
+	const auto now = get_global_time();
+	if (newtime > 0 && now + newtime < now)
+		return false;
+
+	record.dueAt = now + newtime;
+	++record.heapSeq;
+	m_secondsQueue.push(SHeapEntry{record.dueAt, handle.id, record.heapSeq});
+	return true;
 }
 
-bool CEventFunctionHandler::FindEvent(const std::string_view event_name) const
+bool CEventFunctionHandler::DelayEvent(const std::string_view name, const size_t newtime)
 {
-	return GetRecordByName(event_name) != nullptr;
+	return DelayEvent(ResolveHandle(name), newtime);
 }
 
-DWORD CEventFunctionHandler::GetDelay(const std::string_view event_name) const
+bool CEventFunctionHandler::FindEvent(const EventHandle handle) const
 {
-	const auto* record = GetRecordByName(event_name);
-	if (!record || record->timeBase != ETimeBase::Seconds)
+	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+		return false;
+
+	const auto& record = m_events[handle.id];
+	return record.active && record.generation == handle.generation;
+}
+
+bool CEventFunctionHandler::FindEvent(const std::string_view name) const
+{
+	return GetRecordByName(name) != nullptr;
+}
+
+size_t CEventFunctionHandler::GetDelay(const EventHandle handle) const
+{
+	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
 		return 0;
 
-	const auto current_time = get_global_time();
-	return record->dueAt > current_time ? static_cast<DWORD>(record->dueAt - current_time) : 0;
-}
-
-DWORD CEventFunctionHandler::GetPulseDelay(const std::string_view event_name) const
-{
-	const auto* record = GetRecordByName(event_name);
-	if (!record || record->timeBase != ETimeBase::Pulses)
+	const auto& record = m_events[handle.id];
+	if (!record.active || record.generation != handle.generation || record.timeBase != ETimeBase::Seconds)
 		return 0;
 
-	const auto current_pulse = thecore_pulse();
-	return record->dueAt > current_pulse ? static_cast<DWORD>(record->dueAt - current_pulse) : 0;
+	const auto now = get_global_time();
+	return record.dueAt > now ? record.dueAt - now : 0;
 }
 
-bool CEventFunctionHandler::IsPulseEvent(const std::string_view event_name) const
+size_t CEventFunctionHandler::GetDelay(const std::string_view name) const
 {
-	const auto* record = GetRecordByName(event_name);
-	return record && record->timeBase == ETimeBase::Pulses;
+	return GetDelay(ResolveHandle(name));
+}
+
+size_t CEventFunctionHandler::GetPulseDelay(const EventHandle handle) const
+{
+	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+		return 0;
+
+	const auto& record = m_events[handle.id];
+	if (!record.active || record.generation != handle.generation || record.timeBase != ETimeBase::Pulses)
+		return 0;
+
+	const auto now = thecore_pulse();
+	return record.dueAt > now ? record.dueAt - now : 0;
+}
+
+size_t CEventFunctionHandler::GetPulseDelay(const std::string_view name) const
+{
+	return GetPulseDelay(ResolveHandle(name));
+}
+
+bool CEventFunctionHandler::IsPulseEvent(const EventHandle handle) const
+{
+	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+		return false;
+
+	const auto& record = m_events[handle.id];
+	return record.active && record.generation == handle.generation && record.timeBase == ETimeBase::Pulses;
+}
+
+bool CEventFunctionHandler::IsPulseEvent(const std::string_view name) const
+{
+	return IsPulseEvent(ResolveHandle(name));
 }
 
 void CEventFunctionHandler::Process()
 {
-	if (m_nameToId.empty())
+	if (m_processing)
 		return;
+
+	m_processing = true;
+	struct ScopeGuard
+	{
+		bool& flag;
+		~ScopeGuard() { flag = false; }
+	} guard{m_processing};
 
 	const auto currentSeconds = get_global_time();
 	const auto currentPulse = thecore_pulse();
 
 	struct SCollectedEvent
 	{
-		EventCallback func;
 		uint32_t eventId;
 		uint32_t generation;
 		ETimeBase timeBase;
@@ -192,6 +303,7 @@ void CEventFunctionHandler::Process()
 
 	auto drainQueue = [&](MinHeap& queue, const ETimeBase timeBase, const size_t now)
 	{
+		const size_t preDrainSize = queue.size();
 		size_t staleCount = 0;
 		while (!queue.empty() && queue.top().dueAt <= now)
 		{
@@ -205,63 +317,68 @@ void CEventFunctionHandler::Process()
 			}
 
 			auto& record = m_events[entry.eventId];
-			if (!record.active || record.generation != entry.generation || record.timeBase != timeBase)
+			if (!record.active || record.heapSeq != entry.heapSeq || record.timeBase != timeBase)
 			{
 				++staleCount;
 				continue;
 			}
 
-			collected.push_back(SCollectedEvent{record.func, entry.eventId, entry.generation, timeBase});
-
-			if (timeBase == ETimeBase::Seconds)
-			{
-				if (record.loopTime != 0)
-				{
-					++record.generation;
-					record.dueAt = now + static_cast<size_t>(record.loopTime);
-					queue.push(SHeapEntry{record.dueAt, entry.eventId, record.generation});
-				}
-				else
-				{
-					const auto nameIt = m_nameToId.find(record.name);
-					if (nameIt != m_nameToId.end())
-						m_nameToId.erase(nameIt);
-					ReleaseId(entry.eventId);
-				}
-			}
+			collected.push_back(SCollectedEvent{entry.eventId, record.generation, timeBase});
 		}
-		RebuildQueueIfNeeded(queue, timeBase, staleCount);
+		RebuildQueueIfNeeded(queue, timeBase, staleCount, preDrainSize);
 	};
 
 	drainQueue(m_secondsQueue, ETimeBase::Seconds, currentSeconds);
 	drainQueue(m_pulseQueue, ETimeBase::Pulses, currentPulse);
 
-	for (auto& [func, eventId, generation, timeBase] : collected)
+	for (const auto& [eventId, generation, timeBase] : collected)
 	{
-		const int32_t result = func(nullptr);
+		if (eventId >= static_cast<uint32_t>(m_events.size()))
+			continue;
 
-		if (timeBase == ETimeBase::Pulses)
+		auto& record = m_events[eventId];
+		if (!record.active || record.generation != generation)
+			continue;
+
+		const int32_t result = record.func();
+
+		if (eventId >= static_cast<uint32_t>(m_events.size()))
+			continue;
+
+		auto& postRecord = m_events[eventId];
+		if (!postRecord.active || postRecord.generation != generation)
+			continue;
+
+		const size_t now = (timeBase == ETimeBase::Pulses) ? currentPulse : currentSeconds;
+		MinHeap& queue = (timeBase == ETimeBase::Pulses) ? m_pulseQueue : m_secondsQueue;
+
+		if (result > 0)
 		{
-			if (eventId >= static_cast<uint32_t>(m_events.size()))
-				continue;
-
-			auto& record = m_events[eventId];
-			if (!record.active || record.generation != generation)
-				continue;
-
-			if (result > 0)
+			const auto newDueAt = now + static_cast<size_t>(result);
+			if (newDueAt < now)
 			{
-				++record.generation;
-				record.dueAt = currentPulse + static_cast<size_t>(result);
-				m_pulseQueue.push(SHeapEntry{record.dueAt, eventId, record.generation});
-			}
-			else
-			{
-				const auto nameIt = m_nameToId.find(record.name);
+				const auto nameIt = m_nameToId.find(postRecord.name);
 				if (nameIt != m_nameToId.end())
 					m_nameToId.erase(nameIt);
 				ReleaseId(eventId);
+				continue;
 			}
+			postRecord.dueAt = newDueAt;
+			++postRecord.heapSeq;
+			queue.push(SHeapEntry{postRecord.dueAt, eventId, postRecord.heapSeq});
+		}
+		else if (postRecord.loopTime > 0)
+		{
+			postRecord.dueAt = now + static_cast<size_t>(postRecord.loopTime);
+			++postRecord.heapSeq;
+			queue.push(SHeapEntry{postRecord.dueAt, eventId, postRecord.heapSeq});
+		}
+		else
+		{
+			const auto nameIt = m_nameToId.find(postRecord.name);
+			if (nameIt != m_nameToId.end())
+				m_nameToId.erase(nameIt);
+			ReleaseId(eventId);
 		}
 	}
 }
