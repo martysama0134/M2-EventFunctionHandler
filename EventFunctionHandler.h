@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+struct SArgumentSupportImpl {};
+
 class CEventFunctionHandler : public singleton<CEventFunctionHandler>
 {
 public:
@@ -35,9 +37,31 @@ public:
 	CEventFunctionHandler() = default;
 	virtual ~CEventFunctionHandler() = default;
 
-	EventHandle AddEvent(EventCallback func, std::string_view name, size_t time);
-	EventHandle AddPulseEvent(EventCallback func, std::string_view name, int32_t pulseDelay);
-	EventHandle AddLoopEvent(EventCallback func, std::string_view name, size_t interval);
+	template<typename F>
+	EventHandle AddEvent(F&& func, std::string_view name, size_t time, bool loop = false)
+	{
+		auto cb = WrapCallback(std::forward<F>(func));
+		if (!cb) return {};
+		if (loop)
+			return AddLoopEventImpl(std::move(cb), name, time);
+		return AddEventImpl(std::move(cb), name, time);
+	}
+
+	template<typename F>
+	EventHandle AddPulseEvent(F&& func, std::string_view name, int32_t pulseDelay)
+	{
+		auto cb = WrapCallback(std::forward<F>(func));
+		if (!cb) return {};
+		return AddPulseEventImpl(std::move(cb), name, pulseDelay);
+	}
+
+	template<typename F>
+	EventHandle AddLoopEvent(F&& func, std::string_view name, size_t interval)
+	{
+		auto cb = WrapCallback(std::forward<F>(func));
+		if (!cb) return {};
+		return AddLoopEventImpl(std::move(cb), name, interval);
+	}
 
 	bool RemoveEvent(EventHandle handle);
 	bool DelayEvent(EventHandle handle, size_t newtime);
@@ -80,6 +104,73 @@ private:
 	};
 
 	using MinHeap = std::priority_queue<SHeapEntry, std::vector<SHeapEntry>, std::greater<SHeapEntry>>;
+
+	template<typename F>
+	static EventCallback WrapCallback(F&& func)
+	{
+		using Fn = std::decay_t<F>;
+
+		if constexpr (std::is_null_pointer_v<Fn>)
+		{
+			return nullptr;
+		}
+		else if constexpr (std::is_pointer_v<Fn> || std::is_member_pointer_v<Fn>)
+		{
+			if (!func) return nullptr;
+			if constexpr (std::is_invocable_v<Fn&, SArgumentSupportImpl*>)
+			{
+				using R = std::invoke_result_t<Fn&, SArgumentSupportImpl*>;
+				if constexpr (std::is_void_v<R>)
+					return [f = std::forward<F>(func)]() mutable -> int32_t { f(nullptr); return 0; };
+				else
+					return [f = std::forward<F>(func)]() mutable -> int32_t { return static_cast<int32_t>(f(nullptr)); };
+			}
+			else if constexpr (std::is_invocable_v<Fn&>)
+			{
+				using R = std::invoke_result_t<Fn&>;
+				if constexpr (std::is_void_v<R>)
+					return [f = std::forward<F>(func)]() mutable -> int32_t { f(); return 0; };
+				else
+					return EventCallback(std::forward<F>(func));
+			}
+			else
+			{
+				static_assert(!sizeof(Fn), "Callback must be invocable with () or (SArgumentSupportImpl*)");
+			}
+		}
+		else
+		{
+			if constexpr (requires { static_cast<bool>(func); })
+			{
+				if (!func) return nullptr;
+			}
+
+			if constexpr (std::is_invocable_v<Fn&, SArgumentSupportImpl*>)
+			{
+				using R = std::invoke_result_t<Fn&, SArgumentSupportImpl*>;
+				if constexpr (std::is_void_v<R>)
+					return [f = std::forward<F>(func)]() mutable -> int32_t { f(nullptr); return 0; };
+				else
+					return [f = std::forward<F>(func)]() mutable -> int32_t { return static_cast<int32_t>(f(nullptr)); };
+			}
+			else if constexpr (std::is_invocable_v<Fn&>)
+			{
+				using R = std::invoke_result_t<Fn&>;
+				if constexpr (std::is_void_v<R>)
+					return [f = std::forward<F>(func)]() mutable -> int32_t { f(); return 0; };
+				else
+					return EventCallback(std::forward<F>(func));
+			}
+			else
+			{
+				static_assert(!sizeof(Fn), "Callback must be invocable with () or (SArgumentSupportImpl*)");
+			}
+		}
+	}
+
+	EventHandle AddEventImpl(EventCallback func, std::string_view name, size_t time);
+	EventHandle AddPulseEventImpl(EventCallback func, std::string_view name, int32_t pulseDelay);
+	EventHandle AddLoopEventImpl(EventCallback func, std::string_view name, size_t interval);
 
 	static EventHandle MakeHandle(uint32_t id, uint32_t generation) noexcept
 	{

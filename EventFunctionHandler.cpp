@@ -88,7 +88,7 @@ void CEventFunctionHandler::Destroy()
 	m_pulseQueue = MinHeap{};
 }
 
-CEventFunctionHandler::EventHandle CEventFunctionHandler::AddEvent(EventCallback func, const std::string_view name, const size_t time)
+CEventFunctionHandler::EventHandle CEventFunctionHandler::AddEventImpl(EventCallback func, const std::string_view name, const size_t time)
 {
 	if (name.empty() || !func || m_nameToId.contains(name))
 		return {};
@@ -112,7 +112,7 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::AddEvent(EventCallback
 	return MakeHandle(id, record.generation);
 }
 
-CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEvent(EventCallback func, const std::string_view name, int32_t pulseDelay)
+CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEventImpl(EventCallback func, const std::string_view name, int32_t pulseDelay)
 {
 	if (name.empty() || !func || m_nameToId.contains(name))
 		return {};
@@ -140,7 +140,7 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEvent(EventCal
 	return MakeHandle(id, record.generation);
 }
 
-CEventFunctionHandler::EventHandle CEventFunctionHandler::AddLoopEvent(EventCallback func, const std::string_view name, const size_t interval)
+CEventFunctionHandler::EventHandle CEventFunctionHandler::AddLoopEventImpl(EventCallback func, const std::string_view name, const size_t interval)
 {
 	if (name.empty() || !func || interval == 0 || interval > static_cast<size_t>(INT64_MAX) || m_nameToId.contains(name))
 		return {};
