@@ -297,6 +297,7 @@ void CEventFunctionHandler::Process()
 		uint32_t eventId;
 		uint32_t generation;
 		ETimeBase timeBase;
+		EventCallback func;
 	};
 
 	std::vector<SCollectedEvent> collected;
@@ -323,7 +324,7 @@ void CEventFunctionHandler::Process()
 				continue;
 			}
 
-			collected.push_back(SCollectedEvent{entry.eventId, record.generation, timeBase});
+			collected.push_back(SCollectedEvent{entry.eventId, record.generation, timeBase, record.func});
 		}
 		RebuildQueueIfNeeded(queue, timeBase, staleCount, preDrainSize);
 	};
@@ -331,16 +332,12 @@ void CEventFunctionHandler::Process()
 	drainQueue(m_secondsQueue, ETimeBase::Seconds, currentSeconds);
 	drainQueue(m_pulseQueue, ETimeBase::Pulses, currentPulse);
 
-	for (const auto& [eventId, generation, timeBase] : collected)
+	for (const auto& [eventId, generation, timeBase, func] : collected)
 	{
 		if (eventId >= static_cast<uint32_t>(m_events.size()))
 			continue;
 
-		auto& record = m_events[eventId];
-		if (!record.active || record.generation != generation)
-			continue;
-
-		const int32_t result = record.func();
+		const int32_t result = func();
 
 		if (eventId >= static_cast<uint32_t>(m_events.size()))
 			continue;
