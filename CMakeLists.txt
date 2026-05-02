@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(event_handler_test
     EventFunctionHandler.cpp
     test/test_main.cpp
+    test/test_seconds.cpp
 )
 
 target_include_directories(event_handler_test PRIVATE
