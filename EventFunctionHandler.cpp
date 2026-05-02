@@ -54,7 +54,7 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::ResolveHandle(const st
 	{
 		const auto& record = m_events[it->second];
 		if (record.active)
-			return EventHandle{it->second, record.generation};
+			return MakeHandle(it->second, record.generation);
 	}
 	return {};
 }
@@ -110,7 +110,7 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::AddEvent(EventCallback
 
 	m_nameToId.emplace(record.name, id);
 	m_secondsQueue.push(SHeapEntry{record.dueAt, id, record.heapSeq});
-	return EventHandle{id, record.generation};
+	return MakeHandle(id, record.generation);
 }
 
 CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEvent(EventCallback func, const std::string_view name, int32_t pulseDelay)
@@ -138,7 +138,7 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::AddPulseEvent(EventCal
 
 	m_nameToId.emplace(record.name, id);
 	m_pulseQueue.push(SHeapEntry{record.dueAt, id, record.heapSeq});
-	return EventHandle{id, record.generation};
+	return MakeHandle(id, record.generation);
 }
 
 CEventFunctionHandler::EventHandle CEventFunctionHandler::AddLoopEvent(EventCallback func, const std::string_view name, const size_t interval)
@@ -162,22 +162,22 @@ CEventFunctionHandler::EventHandle CEventFunctionHandler::AddLoopEvent(EventCall
 
 	m_nameToId.emplace(record.name, id);
 	m_secondsQueue.push(SHeapEntry{record.dueAt, id, record.heapSeq});
-	return EventHandle{id, record.generation};
+	return MakeHandle(id, record.generation);
 }
 
 bool CEventFunctionHandler::RemoveEvent(const EventHandle handle)
 {
-	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+	if (!handle || handle.m_id >= static_cast<uint32_t>(m_events.size()))
 		return false;
 
-	auto& record = m_events[handle.id];
-	if (!record.active || record.generation != handle.generation)
+	auto& record = m_events[handle.m_id];
+	if (!record.active || record.generation != handle.m_generation)
 		return false;
 
 	const auto nameIt = m_nameToId.find(record.name);
 	if (nameIt != m_nameToId.end())
 		m_nameToId.erase(nameIt);
-	ReleaseId(handle.id);
+	ReleaseId(handle.m_id);
 	return true;
 }
 
@@ -188,11 +188,11 @@ bool CEventFunctionHandler::RemoveEvent(const std::string_view name)
 
 bool CEventFunctionHandler::DelayEvent(const EventHandle handle, const size_t newtime)
 {
-	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+	if (!handle || handle.m_id >= static_cast<uint32_t>(m_events.size()))
 		return false;
 
-	auto& record = m_events[handle.id];
-	if (!record.active || record.generation != handle.generation)
+	auto& record = m_events[handle.m_id];
+	if (!record.active || record.generation != handle.m_generation)
 		return false;
 
 	if (record.timeBase != ETimeBase::Seconds || record.loopTime != 0)
@@ -204,7 +204,7 @@ bool CEventFunctionHandler::DelayEvent(const EventHandle handle, const size_t ne
 
 	record.dueAt = now + newtime;
 	++record.heapSeq;
-	m_secondsQueue.push(SHeapEntry{record.dueAt, handle.id, record.heapSeq});
+	m_secondsQueue.push(SHeapEntry{record.dueAt, handle.m_id, record.heapSeq});
 	return true;
 }
 
@@ -215,11 +215,11 @@ bool CEventFunctionHandler::DelayEvent(const std::string_view name, const size_t
 
 bool CEventFunctionHandler::FindEvent(const EventHandle handle) const
 {
-	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+	if (!handle || handle.m_id >= static_cast<uint32_t>(m_events.size()))
 		return false;
 
-	const auto& record = m_events[handle.id];
-	return record.active && record.generation == handle.generation;
+	const auto& record = m_events[handle.m_id];
+	return record.active && record.generation == handle.m_generation;
 }
 
 bool CEventFunctionHandler::FindEvent(const std::string_view name) const
@@ -229,11 +229,11 @@ bool CEventFunctionHandler::FindEvent(const std::string_view name) const
 
 size_t CEventFunctionHandler::GetDelay(const EventHandle handle) const
 {
-	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+	if (!handle || handle.m_id >= static_cast<uint32_t>(m_events.size()))
 		return 0;
 
-	const auto& record = m_events[handle.id];
-	if (!record.active || record.generation != handle.generation || record.timeBase != ETimeBase::Seconds)
+	const auto& record = m_events[handle.m_id];
+	if (!record.active || record.generation != handle.m_generation || record.timeBase != ETimeBase::Seconds)
 		return 0;
 
 	const auto now = get_global_time();
@@ -247,11 +247,11 @@ size_t CEventFunctionHandler::GetDelay(const std::string_view name) const
 
 size_t CEventFunctionHandler::GetPulseDelay(const EventHandle handle) const
 {
-	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+	if (!handle || handle.m_id >= static_cast<uint32_t>(m_events.size()))
 		return 0;
 
-	const auto& record = m_events[handle.id];
-	if (!record.active || record.generation != handle.generation || record.timeBase != ETimeBase::Pulses)
+	const auto& record = m_events[handle.m_id];
+	if (!record.active || record.generation != handle.m_generation || record.timeBase != ETimeBase::Pulses)
 		return 0;
 
 	const auto now = thecore_pulse();
@@ -265,11 +265,11 @@ size_t CEventFunctionHandler::GetPulseDelay(const std::string_view name) const
 
 bool CEventFunctionHandler::IsPulseEvent(const EventHandle handle) const
 {
-	if (!handle || handle.id >= static_cast<uint32_t>(m_events.size()))
+	if (!handle || handle.m_id >= static_cast<uint32_t>(m_events.size()))
 		return false;
 
-	const auto& record = m_events[handle.id];
-	return record.active && record.generation == handle.generation && record.timeBase == ETimeBase::Pulses;
+	const auto& record = m_events[handle.m_id];
+	return record.active && record.generation == handle.m_generation && record.timeBase == ETimeBase::Pulses;
 }
 
 bool CEventFunctionHandler::IsPulseEvent(const std::string_view name) const

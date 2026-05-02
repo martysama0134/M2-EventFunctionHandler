@@ -6,7 +6,6 @@ TEST_CASE("Default EventHandle is invalid")
 {
 	CEventFunctionHandler::EventHandle h{};
 	CHECK_FALSE(h);
-	CHECK(h.id == UINT32_MAX);
 }
 
 TEST_CASE("Valid handle from AddEvent")
@@ -16,7 +15,6 @@ TEST_CASE("Valid handle from AddEvent")
 	CEventFunctionHandler handler;
 	auto h = handler.AddEvent([&]() -> int32_t { return 0; }, "valid", 5);
 	CHECK(h);
-	CHECK(h.id != UINT32_MAX);
 }
 
 TEST_CASE("Stale handle after RemoveEvent")

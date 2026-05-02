@@ -23,10 +23,13 @@ public:
 
 	struct EventHandle
 	{
-		uint32_t id{UINT32_MAX};
-		uint32_t generation{};
-		explicit operator bool() const noexcept { return id != UINT32_MAX; }
+		explicit operator bool() const noexcept { return m_id != UINT32_MAX; }
 		bool operator==(const EventHandle&) const noexcept = default;
+
+	private:
+		uint32_t m_id{UINT32_MAX};
+		uint32_t m_generation{};
+		friend class CEventFunctionHandler;
 	};
 
 	CEventFunctionHandler() = default;
@@ -77,6 +80,14 @@ private:
 	};
 
 	using MinHeap = std::priority_queue<SHeapEntry, std::vector<SHeapEntry>, std::greater<SHeapEntry>>;
+
+	static EventHandle MakeHandle(uint32_t id, uint32_t generation) noexcept
+	{
+		EventHandle h;
+		h.m_id = id;
+		h.m_generation = generation;
+		return h;
+	}
 
 	uint32_t AllocateId();
 	void ReleaseId(uint32_t id);
