@@ -8,6 +8,7 @@ add_executable(event_handler_test
     EventFunctionHandler.cpp
     test/test_main.cpp
     test/test_seconds.cpp
+    test/test_pulse.cpp
 )
 
 target_include_directories(event_handler_test PRIVATE
