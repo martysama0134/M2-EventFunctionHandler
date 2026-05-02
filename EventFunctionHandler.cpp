@@ -14,9 +14,6 @@ uint32_t CEventFunctionHandler::AllocateId()
 	{
 		const uint32_t id = m_freeIds.back();
 		m_freeIds.pop_back();
-		auto& record = m_events[id];
-		record.func = nullptr;
-		record.name.clear();
 		return id;
 	}
 	const uint32_t id = static_cast<uint32_t>(m_events.size());
@@ -29,6 +26,8 @@ void CEventFunctionHandler::ReleaseId(const uint32_t id)
 	auto& record = m_events[id];
 	record.active = false;
 	++record.generation;
+	record.func = nullptr;
+	record.name.clear();
 	m_freeIds.push_back(id);
 }
 
